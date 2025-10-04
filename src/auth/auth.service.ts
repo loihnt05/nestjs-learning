@@ -6,10 +6,14 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { AuthDto } from './dto';
 import * as argon from 'argon2';
 import { PrismaClientKnownRequestError } from 'generated/prisma/runtime/library';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 @Injectable()
 export class AuthService {
   constructor(
     private prismaService: PrismaService,
+    private jwtService: JwtService,
+    private configService: ConfigService,
   ) {}
   async signup(dto: AuthDto) {
     try {
@@ -24,9 +28,10 @@ export class AuthService {
           },
         });
 
-      const { hash: _, ...safeUser } = newUser;
-      // return the saved user
-      return safeUser;
+      return this.signToken(
+        newUser.id,
+        newUser.email,
+      );
     } catch (error) {
       if (
         error instanceof
@@ -40,34 +45,52 @@ export class AuthService {
     }
   }
   async signin(dto: AuthDto) {
-      // find user by email
-      const user =
-        await this.prismaService.user.findUnique({
-          where: {
-            email: dto.email,
-          },
-        });
-      // if user does not exist throw exception
-      if (!user) {
-        throw new ForbiddenException(
-          'User Not Found',
-        );
-      }
-
-      // compare password
-      const pwMatches = await argon.verify(
-        user.hash,
-        dto.password,
+    // find user by email
+    const user =
+      await this.prismaService.user.findUnique({
+        where: {
+          email: dto.email,
+        },
+      });
+    // if user does not exist throw exception
+    if (!user) {
+      throw new ForbiddenException(
+        'User Not Found',
       );
-      // if password incorrect throw exception
-      if (!pwMatches) {
-        throw new ForbiddenException(
-          'Password not match',
-        );
-      }
+    }
 
-      // send back the user
-      const { hash: _, ...safeUser } = user;
-      return safeUser;
+    // compare password
+    const pwMatches = await argon.verify(
+      user.hash,
+      dto.password,
+    );
+    // if password incorrect throw exception
+    if (!pwMatches) {
+      throw new ForbiddenException(
+        'Password not match',
+      );
+    }
+    return this.signToken(user.id, user.email);
+  }
+  async signToken(
+    userId: number,
+    email: string,
+  ): Promise<{accessToken: string}> {
+    const payload = {
+      sub: userId,
+      email,
+    };
+    const secret =
+      await this.configService.get('JWT_SECRET');
+    const token = await this.jwtService.signAsync(
+      payload,
+      {
+        expiresIn: '15m',
+        secret: secret,
+      },
+    );
+    return {
+      accessToken: token
+    }
   }
 }
