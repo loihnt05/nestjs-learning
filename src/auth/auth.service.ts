@@ -2,12 +2,12 @@ import {
   ForbiddenException,
   Injectable,
 } from '@nestjs/common';
-import { PrismaService } from 'src/prisma/prisma.service';
 import { AuthDto } from './dto';
 import * as argon from 'argon2';
-import { PrismaClientKnownRequestError } from 'generated/prisma/runtime/library';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
 @Injectable()
 export class AuthService {
   constructor(
@@ -75,13 +75,12 @@ export class AuthService {
   async signToken(
     userId: number,
     email: string,
-  ): Promise<{accessToken: string}> {
+  ): Promise<{ accessToken: string }> {
     const payload = {
       sub: userId,
       email,
     };
-    const secret =
-      await this.configService.get('JWT_SECRET');
+    const secret = await this.configService.get('JWT_SECRET');
     const token = await this.jwtService.signAsync(
       payload,
       {
@@ -90,7 +89,7 @@ export class AuthService {
       },
     );
     return {
-      accessToken: token
-    }
+      accessToken: token,
+    };
   }
 }
